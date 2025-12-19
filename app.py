@@ -27,7 +27,13 @@ except ImportError:
     genai = None
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
-CORS(app)
+
+# ==========================================
+# ✅ FIX 1: STRONGER CORS CONFIGURATION
+# ==========================================
+# This explicitly allows all origins (*) for all routes (/*)
+# ensuring the browser doesn't block the connection.
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # --------------------------
 # Database configuration (SECURE)
@@ -385,8 +391,13 @@ Preferred language: {language}
 
 # --- Authentication and User Management Routes ---
 
-@app.route("/api/auth/forgot-password", methods=["POST"])
+# ✅ FIX 2: Allow OPTIONS method for Preflight Checks
+@app.route("/api/auth/forgot-password", methods=["POST", "OPTIONS"])
 def forgot_password(): 
+    # ✅ FIX 3: Respond to Preflight check immediately
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
+
     data = request.json
     email = data.get("email")
 
@@ -430,8 +441,13 @@ def forgot_password():
         db.close()
 
 
-@app.route("/api/auth/reset-password", methods=["POST"])
+# ✅ FIX 4: Allow OPTIONS method for Preflight Checks
+@app.route("/api/auth/reset-password", methods=["POST", "OPTIONS"])
 def reset_password(): 
+    # ✅ FIX 5: Respond to Preflight check immediately
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
+
     data = request.json
     token = data.get("token")
     new_password = data.get("newPassword")
@@ -486,8 +502,12 @@ def reset_password():
         cursor.close()
         db.close()
 
-@app.route("/api/auth/delete", methods=["DELETE"])
-def delete_account(): 
+@app.route("/api/auth/delete", methods=["DELETE", "OPTIONS"])
+def delete_account():
+    # Handle preflight check
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
+
     data = request.get_json() 
     
     db_id_from_request = data.get("dbId")
