@@ -29,11 +29,21 @@ except ImportError:
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
 # ==========================================
-# ✅ FIX 1: STRONGER CORS CONFIGURATION
+# ✅ FIX 1: STANDARD CORS SETUP
 # ==========================================
-# This explicitly allows all origins (*) for all routes (/*)
-# ensuring the browser doesn't block the connection.
-CORS(app, resources={r"/*": {"origins": "*"}})
+# Initialize CORS to allow requests from any origin
+CORS(app)
+
+# ==========================================
+# ✅ FIX 2: GLOBAL HEADER INJECTION
+# ==========================================
+# This ensures EVERY response gets the headers, preventing CORS blocks on errors.
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+    return response
 
 # --------------------------
 # Database configuration (SECURE)
@@ -391,13 +401,9 @@ Preferred language: {language}
 
 # --- Authentication and User Management Routes ---
 
-# ✅ FIX 2: Allow OPTIONS method for Preflight Checks
-@app.route("/api/auth/forgot-password", methods=["POST", "OPTIONS"])
+# ✅ FIX 3: Removed manual OPTIONS check (handled by after_request)
+@app.route("/api/auth/forgot-password", methods=["POST"])
 def forgot_password(): 
-    # ✅ FIX 3: Respond to Preflight check immediately
-    if request.method == "OPTIONS":
-        return jsonify({"message": "OK"}), 200
-
     data = request.json
     email = data.get("email")
 
@@ -441,13 +447,9 @@ def forgot_password():
         db.close()
 
 
-# ✅ FIX 4: Allow OPTIONS method for Preflight Checks
-@app.route("/api/auth/reset-password", methods=["POST", "OPTIONS"])
+# ✅ FIX 4: Removed manual OPTIONS check (handled by after_request)
+@app.route("/api/auth/reset-password", methods=["POST"])
 def reset_password(): 
-    # ✅ FIX 5: Respond to Preflight check immediately
-    if request.method == "OPTIONS":
-        return jsonify({"message": "OK"}), 200
-
     data = request.json
     token = data.get("token")
     new_password = data.get("newPassword")
@@ -502,12 +504,9 @@ def reset_password():
         cursor.close()
         db.close()
 
-@app.route("/api/auth/delete", methods=["DELETE", "OPTIONS"])
+# ✅ FIX 5: Removed manual OPTIONS check (handled by after_request)
+@app.route("/api/auth/delete", methods=["DELETE"])
 def delete_account():
-    # Handle preflight check
-    if request.method == "OPTIONS":
-        return jsonify({"message": "OK"}), 200
-
     data = request.get_json() 
     
     db_id_from_request = data.get("dbId")
