@@ -26,19 +26,30 @@ try:
 except ImportError:
     genai = None
 
+
+
+
 app = Flask(__name__, static_folder="static", template_folder="templates")
+
+
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = jsonify({"message": "OK"})
+        response.headers.add("Access-Control-Allow-Origin", "https://mooc-frontend-myqa.onrender.com")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        response.headers.add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        return response, 200
+
+
+
+
 
 CORS(
     app,
-    resources={
-        r"/api/*": {
-            "origins": [
-                "https://mooc-frontend-myqa.onrender.com"
-            ]
-        }
-    },
-    supports_credentials=False
+    resources={r"/api/*": {"origins": "https://mooc-frontend-myqa.onrender.com"}},
 )
+
 
 
 
@@ -400,9 +411,13 @@ Preferred language: {language}
 
 # ✅ FIX 3: Removed manual OPTIONS check (handled by after_request)
 @app.route("/api/auth/forgot-password", methods=["POST", "OPTIONS"])
-def forgot_password(): 
-    data = request.json
+def forgot_password():
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
+
+    data = request.get_json(silent=True) or {}
     email = data.get("email")
+
 
     if not email:
         return jsonify({"message": "Email is required"}), 400
@@ -447,8 +462,10 @@ def forgot_password():
 # ✅ FIX 4: Removed manual OPTIONS check (handled by after_request)
 @app.route("/api/auth/reset-password", methods=["POST", "OPTIONS"])
 def reset_password(): 
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
 
-    data = request.json
+    data = request.get_json(silent=True) or {}
     token = data.get("token")
     new_password = data.get("newPassword")
     
