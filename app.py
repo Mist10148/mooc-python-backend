@@ -28,20 +28,19 @@ except ImportError:
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# ==========================================
-# ✅ MANUAL CORS HEADERS (The Fix)
-# ==========================================
-@app.after_request
-def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    return response
+CORS(
+    app,
+    resources={
+        r"/api/*": {
+            "origins": [
+                "https://mooc-frontend-myqa.onrender.com"
+            ]
+        }
+    },
+    supports_credentials=False
+)
 
-# Handle "Preflight" checks globally
-@app.route('/<path:path>', methods=['OPTIONS'])
-def handle_options(path):
-    return jsonify({}), 200
+
 
 # --------------------------
 # Database configuration (SECURE)
@@ -402,10 +401,6 @@ Preferred language: {language}
 # ✅ FIX 3: Removed manual OPTIONS check (handled by after_request)
 @app.route("/api/auth/forgot-password", methods=["POST", "OPTIONS"])
 def forgot_password(): 
-    # ✅ Handle preflight check immediately
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
-
     data = request.json
     email = data.get("email")
 
@@ -452,9 +447,6 @@ def forgot_password():
 # ✅ FIX 4: Removed manual OPTIONS check (handled by after_request)
 @app.route("/api/auth/reset-password", methods=["POST", "OPTIONS"])
 def reset_password(): 
-    # ✅ Handle preflight check immediately
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
 
     data = request.json
     token = data.get("token")
@@ -513,9 +505,6 @@ def reset_password():
 # ✅ FIX 5: Removed manual OPTIONS check (handled by after_request)
 @app.route("/api/auth/delete", methods=["DELETE", "OPTIONS"])
 def delete_account():
-    # ✅ Handle preflight check immediately
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
 
     data = request.get_json()
     
