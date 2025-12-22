@@ -7,7 +7,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify
 import mysql.connector
 import requests
 from flask_cors import CORS
@@ -26,37 +26,26 @@ try:
 except ImportError:
     genai = None
 
-
-
-
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# ✅ FIXED: Comprehensive CORS configuration
-CORS(
-    app,
-    resources={
-        r"/*": {
-            "origins": ["https://mooc-frontend-myqa.onrender.com", "http://localhost:*"],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
-            "expose_headers": ["Content-Type"],
-            "supports_credentials": True,
-            "max_age": 3600
-        }
-    }
-)
+# ===========================================================================
+# ✅ FIXED: Strict & Standardized CORS
+# We remove the manual 'after_request' headers because they conflict with Flask-CORS
+# ===========================================================================
+ALLOWED_ORIGINS = [
+    "https://mooc-frontend-myqa.onrender.com",
+    "http://localhost:5173", 
+    "http://localhost:4173",
+    "http://localhost:8080"
+]
 
-# ✅ CRITICAL: Add after_request to ensure CORS headers on ALL responses
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin')
-    if origin and origin.startswith('https://mooc-frontend-myqa.onrender.com'):
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response
-
+CORS(app, resources={r"/*": {
+    "origins": ALLOWED_ORIGINS,
+    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"],
+    "supports_credentials": True,
+    "max_age": 3600
+}})
 
 # --------------------------
 # Database configuration (SECURE)
@@ -67,7 +56,6 @@ DB_CONFIG = {
     "password": os.environ.get("DB_PASS"),
     "database": os.environ.get("DB_NAME"),
     "port": int(os.environ.get("DB_PORT", 3306)),
-    # Aiven requires SSL. 'ssl_disabled=False' is safer.
     "ssl_disabled": False 
 }
 
@@ -84,11 +72,11 @@ USE_SDK = True  # switch to False to use REST
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 SENDER_EMAIL = os.environ.get("MAIL_USERNAME")
-# Remove spaces if they exist in the env var
 _raw_password = os.environ.get("MAIL_PASSWORD", "")
 SENDER_PASSWORD = _raw_password.replace(" ", "") 
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8080")
+# ✅ FIXED: Default to HTTPS to avoid Mixed Content errors
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://mooc-frontend-myqa.onrender.com")
 
 # NEW CONSTANT
 MIN_PASSWORD_LENGTH = 6
@@ -305,6 +293,7 @@ def _create_reset_password_html_body(reset_link):
 
 def send_reset_email(user_email): 
     reset_token = str(uuid.uuid4())
+    # Ensure this variable is HTTPS
     reset_link = f"{FRONTEND_URL}/reset-password?token={reset_token}"
     subject = "Action Required: Reset Your SilayLearn Password"
     html_body = _create_reset_password_html_body(reset_link)
@@ -414,12 +403,10 @@ Preferred language: {language}
 
 # --- Authentication and User Management Routes ---
 
-@app.route("/api/auth/forgot-password", methods=["POST", "OPTIONS"])
+@app.route("/api/auth/forgot-password", methods=["POST"])
 def forgot_password():
-    # OPTIONS is handled by after_request, but we can return early
-    if request.method == "OPTIONS":
-        return jsonify({"message": "OK"}), 200
-
+    # ✅ FIXED: Removed manual OPTIONS check. Flask-CORS handles this automatically.
+    
     data = request.get_json(silent=True) or {}
     email = data.get("email")
 
@@ -463,11 +450,10 @@ def forgot_password():
         db.close()
 
 
-@app.route("/api/auth/reset-password", methods=["POST", "OPTIONS"])
+@app.route("/api/auth/reset-password", methods=["POST"])
 def reset_password(): 
-    if request.method == "OPTIONS":
-        return jsonify({"message": "OK"}), 200
-
+    # ✅ FIXED: Removed manual OPTIONS check.
+    
     data = request.get_json(silent=True) or {}
     token = data.get("token")
     new_password = data.get("newPassword")
@@ -522,10 +508,9 @@ def reset_password():
         cursor.close()
         db.close()
 
-@app.route("/api/auth/delete", methods=["DELETE", "OPTIONS"])
+@app.route("/api/auth/delete", methods=["DELETE"])
 def delete_account():
-    if request.method == "OPTIONS":
-        return jsonify({"message": "OK"}), 200
+    # ✅ FIXED: Removed manual OPTIONS check.
 
     data = request.get_json()
     
