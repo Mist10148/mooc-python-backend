@@ -31,26 +31,22 @@ except ImportError:
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-
-@app.before_request
-def handle_preflight():
-    if request.method == "OPTIONS":
-        response = jsonify({"message": "OK"})
-        response.headers.add("Access-Control-Allow-Origin", "https://mooc-frontend-myqa.onrender.com")
-        response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        response.headers.add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        return response, 200
-
-
-
-
-
+# ✅ FIXED: Proper CORS configuration
 CORS(
     app,
-    resources={r"/api/*": {"origins": "https://mooc-frontend-myqa.onrender.com"}},
+    resources={r"/*": {"origins": "https://mooc-frontend-myqa.onrender.com"}},
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    supports_credentials=True
 )
 
-
+# ✅ FIXED: Add after_request to ensure CORS headers on all responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'https://mooc-frontend-myqa.onrender.com')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    return response
 
 
 # --------------------------
@@ -409,15 +405,14 @@ Preferred language: {language}
 
 # --- Authentication and User Management Routes ---
 
-# ✅ FIX 3: Removed manual OPTIONS check (handled by after_request)
 @app.route("/api/auth/forgot-password", methods=["POST", "OPTIONS"])
 def forgot_password():
+    # OPTIONS is handled by after_request, but we can return early
     if request.method == "OPTIONS":
         return jsonify({"message": "OK"}), 200
 
     data = request.get_json(silent=True) or {}
     email = data.get("email")
-
 
     if not email:
         return jsonify({"message": "Email is required"}), 400
@@ -459,7 +454,6 @@ def forgot_password():
         db.close()
 
 
-# ✅ FIX 4: Removed manual OPTIONS check (handled by after_request)
 @app.route("/api/auth/reset-password", methods=["POST", "OPTIONS"])
 def reset_password(): 
     if request.method == "OPTIONS":
@@ -519,9 +513,10 @@ def reset_password():
         cursor.close()
         db.close()
 
-# ✅ FIX 5: Removed manual OPTIONS check (handled by after_request)
 @app.route("/api/auth/delete", methods=["DELETE", "OPTIONS"])
 def delete_account():
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
 
     data = request.get_json()
     
