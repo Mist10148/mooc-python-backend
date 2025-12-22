@@ -31,21 +31,30 @@ except ImportError:
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# ✅ FIXED: Proper CORS configuration
+# ✅ FIXED: Comprehensive CORS configuration
 CORS(
     app,
-    resources={r"/*": {"origins": "https://mooc-frontend-myqa.onrender.com"}},
-    allow_headers=["Content-Type", "Authorization"],
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    supports_credentials=True
+    resources={
+        r"/*": {
+            "origins": ["https://mooc-frontend-myqa.onrender.com", "http://localhost:*"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "expose_headers": ["Content-Type"],
+            "supports_credentials": True,
+            "max_age": 3600
+        }
+    }
 )
 
-# ✅ FIXED: Add after_request to ensure CORS headers on all responses
+# ✅ CRITICAL: Add after_request to ensure CORS headers on ALL responses
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'https://mooc-frontend-myqa.onrender.com')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    origin = request.headers.get('Origin')
+    if origin and origin.startswith('https://mooc-frontend-myqa.onrender.com'):
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
     return response
 
 
