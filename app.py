@@ -1,11 +1,8 @@
-# app.py - COMPLETE SIMPLIFIED VERSION WITH CORS FIXED
+# app.py - SIMPLIFIED VERSION WITHOUT EMAIL AUTOMATION
+# Forgot/Reset Password endpoints removed - now handled by PHP
 
 import os
-import uuid
 import datetime
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 from flask import Flask, request, jsonify
 import mysql.connector
@@ -65,16 +62,6 @@ DB_CONFIG = {
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash"
 USE_SDK = True
-
-# --------------------------
-# Email Configuration (SECURE)
-# --------------------------
-SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
-SENDER_EMAIL = os.environ.get("MAIL_USERNAME")
-_raw_password = os.environ.get("MAIL_PASSWORD", "")
-SENDER_PASSWORD = _raw_password.replace(" ", "") 
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://mooc-frontend-myqa.onrender.com")
 
 MIN_PASSWORD_LENGTH = 6
 
@@ -215,116 +202,6 @@ def call_gemini_rest(prompt):
         return "Network Error: Could not connect to the Gemini server endpoint."
 
 # --------------------------
-# Email handler functions
-# --------------------------
-def _create_reset_password_html_body(reset_link): 
-    START_COLOR = "#1D4ED8"  
-    END_COLOR = "#0D9488"    
-    ACCENT_COLOR = "#0D9488" 
-    BG_COLOR = "#f7f7f7"
-    CARD_BG = "#ffffff"
-    TEXT_COLOR = "#333333"
-
-    GRADIENT_STYLE = f"""
-        background-color: {START_COLOR}; 
-        background-image: linear-gradient(to right, {START_COLOR}, {END_COLOR});
-        color: white; 
-        padding: 24px 20px; 
-        text-align: center;
-    """
-
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Password Reset</title>
-    </head>
-    <body style="font-family: Arial, sans-serif; background-color: {BG_COLOR}; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: {CARD_BG}; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden;">
-            
-            <div style="{GRADIENT_STYLE}">
-                <h1 style="margin: 0; font-size: 24px; font-weight: bold;">
-                    Silay<span style="color: {CARD_BG};">Learn</span>
-                </h1>
-            </div>
-
-            <div style="padding: 30px 40px; color: {TEXT_COLOR};">
-                <h2 style="font-size: 20px; color: #1f2937; margin-top: 0; margin-bottom: 20px;">
-                    Reset Your Password
-                </h2>
-                <p style="margin-bottom: 25px; line-height: 1.6;">
-                    Click the button below to be taken to a secure page to set a new password.
-                </p>
-                
-                <div style="text-align: center; margin: 30px 0;">
-                    <a href="{reset_link}" 
-                       target="_blank" 
-                       style="display: inline-block; padding: 12px 25px; background-color: {ACCENT_COLOR}; 
-                              color: {CARD_BG}; text-decoration: none; border-radius: 8px; 
-                              font-weight: bold; font-size: 16px; box-shadow: 0 4px 8px rgba(13, 148, 136, 0.3);">
-                        Set New Password
-                    </a>
-                </div>
-
-                <p style="font-size: 14px; margin-top: 30px; border-top: 1px solid #eeeeee; padding-top: 15px; color: #6b7280;">
-                    If you did not request a password reset, please ignore this email.
-                </p>
-            </div>
-
-            <div style="background-color: {BG_COLOR}; padding: 15px; text-align: center; font-size: 12px; color: #9ca3af;">
-                &copy; {datetime.date.today().year} SilayLearn. All rights reserved.
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    return html
-
-def send_reset_email(user_email): 
-    reset_token = str(uuid.uuid4())
-    reset_link = f"{FRONTEND_URL}/reset-password?token={reset_token}"
-    subject = "Action Required: Reset Your SilayLearn Password"
-    html_body = _create_reset_password_html_body(reset_link)
-    plain_text_body = f"Hello,\nYou requested a password reset. Please click the link below:\n{reset_link}"
-    
-    success, msg = _send_email(user_email, subject, plain_text_body, html_body)
-    
-    if success:
-        return True, reset_token 
-    else:
-        return False, msg
-
-def _send_email(to_email, subject, plain_text_body, html_body): 
-    try:
-        msg = MIMEMultipart('alternative')
-        msg['From'] = SENDER_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = subject
-
-        msg.attach(MIMEText(plain_text_body, 'plain'))
-        msg.attach(MIMEText(html_body, 'html'))
-
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        
-        text = msg.as_string()
-        server.sendmail(SENDER_EMAIL, to_email, text)
-        server.quit()
-        
-        return True, "Email sent"
-        
-    except smtplib.SMTPAuthenticationError:
-        print("\nFATAL ERROR: SMTP Authentication Failed.")
-        return False, "Authentication Error. Check config."
-    except Exception as e:
-        print(f"FATAL ERROR: Failed to send email to {to_email}. Exception: {e}")
-        return False, str(e)
-
-# --------------------------
 # Routes
 # --------------------------
 @app.route("/")
@@ -396,128 +273,7 @@ Preferred language: {language}
     return jsonify({"reply": reply})
 
 # --- Authentication and User Management Routes ---
-
-@app.route("/api/auth/forgot-password", methods=["POST", "OPTIONS"])
-def forgot_password():
-    print("=== FORGOT PASSWORD ENDPOINT CALLED ===")
-    print(f"Method: {request.method}")
-    print(f"Origin: {request.headers.get('Origin')}")
-    
-    if request.method == "OPTIONS":
-        return jsonify({"message": "OK"}), 200
-
-    try:
-        data = request.get_json(silent=True) or {}
-        email = data.get("email")
-        
-        print(f"Email received: {email}")
-
-        if not email:
-            return jsonify({"message": "Email is required"}), 400
-        
-        db = get_db()
-        cursor = db.cursor()
-
-        try:
-            cursor.execute("SELECT id FROM users WHERE email=%s", (email,))
-            user_record = cursor.fetchone()
-            
-            if not user_record:
-                print(f"User not found for email: {email}")
-                # Return success message even if user doesn't exist (security best practice)
-                return jsonify({"message": "If an account exists, a password reset link has been sent."}), 200
-
-            user_id = user_record[0]
-            print(f"User found, ID: {user_id}")
-            
-            success, msg_or_token = send_reset_email(email)
-            
-            if not success:
-                print(f"Failed to send email: {msg_or_token}")
-                return jsonify({"message": "Failed to send email.", "error": msg_or_token}), 500
-
-            reset_token = msg_or_token 
-            expires_at = datetime.datetime.now() + datetime.timedelta(hours=1)
-            
-            cursor.execute(
-                "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)",
-                (user_id, reset_token, expires_at)
-            )
-            db.commit()
-            
-            print("Password reset token saved successfully")
-            return jsonify({"message": "Password reset link sent. Check your inbox."}), 200
-
-        except mysql.connector.Error as err:
-            db.rollback()
-            print(f"ERROR: Database error: {err.msg}")
-            return jsonify({"message": "Failed to generate reset link."}), 500
-        finally:
-            cursor.close()
-            db.close()
-            
-    except Exception as e:
-        print(f"EXCEPTION in forgot_password: {e}")
-        return jsonify({"message": f"Server error: {str(e)}"}), 500
-
-@app.route("/api/auth/reset-password", methods=["POST", "OPTIONS"])
-def reset_password(): 
-    if request.method == "OPTIONS":
-        return jsonify({"message": "OK"}), 200
-
-    data = request.get_json(silent=True) or {}
-    token = data.get("token")
-    new_password = data.get("newPassword")
-    
-    if not all([token, new_password]):
-        return jsonify({"message": "Token and new password are required."}), 400
-    
-    if len(new_password) < MIN_PASSWORD_LENGTH:
-        return jsonify({"message": f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."}), 400
-
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-    
-    try:
-        cursor.execute(
-            "SELECT user_id FROM password_reset_tokens WHERE token=%s AND expires_at > NOW()",
-            (token,)
-        )
-        token_record = cursor.fetchone()
-
-        if not token_record:
-            return jsonify({"message": "Invalid or expired password reset link."}), 401
-
-        user_id = token_record['user_id']
-        
-        hashed_password = bcrypt.hashpw(
-            new_password.encode('utf-8'), 
-            bcrypt.gensalt()
-        ).decode('utf-8')
-
-        db.autocommit = False
-        cursor.execute(
-            "UPDATE users SET password = %s WHERE id = %s",
-            (hashed_password, user_id)
-        )
-
-        cursor.execute(
-            "DELETE FROM password_reset_tokens WHERE token = %s",
-            (token,)
-        )
-        
-        db.commit()
-        db.autocommit = True
-
-        return jsonify({"message": "Password updated successfully."}), 200
-
-    except mysql.connector.Error as err:
-        db.rollback()
-        print(f"ERROR: Database error: {err.msg}")
-        return jsonify({"message": f"Server error: {err.msg}"}), 500
-    finally:
-        cursor.close()
-        db.close()
+# NOTE: Forgot Password and Reset Password are now handled by PHP
 
 @app.route("/api/auth/delete", methods=["DELETE", "OPTIONS"])
 def delete_account():
@@ -559,6 +315,7 @@ def delete_account():
             
         db.autocommit = False 
         cursor.execute("DELETE FROM chat_history WHERE user_id=%s", (db_id,))
+        cursor.execute("DELETE FROM password_reset_tokens WHERE user_id=%s", (db_id,))
         cursor.execute("DELETE FROM users WHERE id=%s", (db_id,))
         db.commit() 
         db.autocommit = True
@@ -580,5 +337,5 @@ def delete_account():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Starting Flask app on port {port}...")
-    print(f"Frontend URL: {FRONTEND_URL}")
+    print("NOTE: Forgot/Reset Password endpoints are now handled by PHP backend")
     app.run(debug=False, host='0.0.0.0', port=port)
