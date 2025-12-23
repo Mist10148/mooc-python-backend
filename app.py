@@ -1,8 +1,8 @@
-# app.py
+# app.py - COMPLETE SIMPLIFIED VERSION WITH CORS FIXED
 
 import os
-import uuid  # For generating unique reset tokens
-import datetime # For setting token expiration time
+import uuid
+import datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -10,15 +10,14 @@ from email.mime.multipart import MIMEMultipart
 from flask import Flask, request, jsonify
 import mysql.connector
 import requests
-from flask_cors import CORS
-import bcrypt # For secure password hashing and checking
+import bcrypt
 
-# Load .env file for local development (if library exists)
+# Load .env file for local development
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    pass  # In production (Docker), env vars are set by the server
+    pass
 
 # Gemini SDK (safe import)
 try:
@@ -28,24 +27,25 @@ except ImportError:
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# ===========================================================================
-# ✅ FIXED: Strict & Standardized CORS
-# We remove the manual 'after_request' headers because they conflict with Flask-CORS
-# ===========================================================================
-ALLOWED_ORIGINS = [
-    "https://mooc-frontend-myqa.onrender.com",
-    "http://localhost:5173", 
-    "http://localhost:4173",
-    "http://localhost:8080"
-]
+# ✅ SIMPLIFIED CORS - NO LIBRARY NEEDED
+@app.after_request
+def after_request(response):
+    # Allow requests from your frontend
+    response.headers['Access-Control-Allow-Origin'] = 'https://mooc-frontend-myqa.onrender.com'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
 
-CORS(app, resources={r"/*": {
-    "origins": ALLOWED_ORIGINS,
-    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "allow_headers": ["Content-Type", "Authorization"],
-    "supports_credentials": True,
-    "max_age": 3600
-}})
+# ✅ Handle OPTIONS requests (preflight)
+@app.before_request
+def handle_options():
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = 'https://mooc-frontend-myqa.onrender.com'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
 
 # --------------------------
 # Database configuration (SECURE)
@@ -64,7 +64,7 @@ DB_CONFIG = {
 # --------------------------
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash"
-USE_SDK = True  # switch to False to use REST
+USE_SDK = True
 
 # --------------------------
 # Email Configuration (SECURE)
@@ -74,13 +74,9 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 SENDER_EMAIL = os.environ.get("MAIL_USERNAME")
 _raw_password = os.environ.get("MAIL_PASSWORD", "")
 SENDER_PASSWORD = _raw_password.replace(" ", "") 
-
-# ✅ FIXED: Default to HTTPS to avoid Mixed Content errors
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://mooc-frontend-myqa.onrender.com")
 
-# NEW CONSTANT
 MIN_PASSWORD_LENGTH = 6
-
 
 # --------------------------
 # DB helper functions
@@ -140,7 +136,6 @@ def load_chat_summary(user_id):
         if cursor: cursor.close()
         if db: db.close()
 
-
 def get_chat_history(user_id): 
     """
     Retrieves the full chat history for a user, structured for API response.
@@ -169,15 +164,14 @@ def get_chat_history(user_id):
         if cursor: cursor.close()
         if db: db.close()
 
-
 # --------------------------
 # Gemini handler functions
 # --------------------------
 def parse_gemini_response(resp): 
     """Safely extract the best output text from different possible Gemini SDK/REST formats."""
-    if hasattr(resp, "text") and resp.text: return resp.text
+    if hasattr(resp, "text") and resp.text: 
+        return resp.text
     return str(resp)
-
 
 def call_gemini_sdk(prompt): 
     """Tries the Gemini SDK, falls back to REST call on failure."""
@@ -191,7 +185,6 @@ def call_gemini_sdk(prompt):
     except Exception as e:
         print(f"ERROR: Gemini SDK call failed. Falling back to REST call. Error: {e}")
         return call_gemini_rest(prompt)
-
 
 def call_gemini_rest(prompt): 
     """Calls Gemini API using REST for maximum compatibility and debugging."""
@@ -220,7 +213,6 @@ def call_gemini_rest(prompt):
     except requests.exceptions.RequestException as e:
         print(f"\nFATAL NETWORK ERROR REACHING GEMINI: {e}\n")
         return "Network Error: Could not connect to the Gemini server endpoint."
-
 
 # --------------------------
 # Email handler functions
@@ -290,10 +282,8 @@ def _create_reset_password_html_body(reset_link):
     """
     return html
 
-
 def send_reset_email(user_email): 
     reset_token = str(uuid.uuid4())
-    # Ensure this variable is HTTPS
     reset_link = f"{FRONTEND_URL}/reset-password?token={reset_token}"
     subject = "Action Required: Reset Your SilayLearn Password"
     html_body = _create_reset_password_html_body(reset_link)
@@ -305,7 +295,6 @@ def send_reset_email(user_email):
         return True, reset_token 
     else:
         return False, msg
-
 
 def _send_email(to_email, subject, plain_text_body, html_body): 
     try:
@@ -335,13 +324,16 @@ def _send_email(to_email, subject, plain_text_body, html_body):
         print(f"FATAL ERROR: Failed to send email to {to_email}. Exception: {e}")
         return False, str(e)
 
-
 # --------------------------
 # Routes
 # --------------------------
 @app.route("/")
 def index(): 
-    return jsonify({"message": "Python Backend is Running"}), 200
+    return jsonify({"message": "Python Backend is Running", "status": "ok"}), 200
+
+@app.route("/health")
+def health(): 
+    return jsonify({"status": "healthy"}), 200
 
 # --- Chat Routes ---
 
@@ -354,7 +346,6 @@ def chat_history_route(user_id):
         print(f"ERROR fetching chat history for user {user_id}: {e}")
         return jsonify({"message": "Failed to retrieve chat history."}), 500
 
-
 @app.route("/chat", methods=["POST"])
 def chat(): 
     data = request.json
@@ -363,9 +354,12 @@ def chat():
     lesson_title = data.get("lesson_title", "MOOC Lesson")
     language = data.get("language", "en")
     
-    if not user_id: return jsonify({"reply": "Error: Invalid user_id provided."}), 400
-    try: user_id = int(user_id)
-    except: return jsonify({"reply": "Error: user_id must be an integer."}), 400
+    if not user_id: 
+        return jsonify({"reply": "Error: Invalid user_id provided."}), 400
+    try: 
+        user_id = int(user_id)
+    except: 
+        return jsonify({"reply": "Error: user_id must be an integer."}), 400
 
     save_message(user_id, "user", user_msg)
     summary = load_chat_summary(user_id)
@@ -403,57 +397,74 @@ Preferred language: {language}
 
 # --- Authentication and User Management Routes ---
 
-@app.route("/api/auth/forgot-password", methods=["POST"])
+@app.route("/api/auth/forgot-password", methods=["POST", "OPTIONS"])
 def forgot_password():
-    # ✅ FIXED: Removed manual OPTIONS check. Flask-CORS handles this automatically.
+    print("=== FORGOT PASSWORD ENDPOINT CALLED ===")
+    print(f"Method: {request.method}")
+    print(f"Origin: {request.headers.get('Origin')}")
     
-    data = request.get_json(silent=True) or {}
-    email = data.get("email")
-
-    if not email:
-        return jsonify({"message": "Email is required"}), 400
-    
-    db = get_db()
-    cursor = db.cursor()
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
 
     try:
-        cursor.execute("SELECT id FROM users WHERE email=%s", (email,))
-        user_record = cursor.fetchone()
-        if not user_record:
-            return jsonify({"message": "If an account exists, a password reset link has been sent."}), 200
-
-        user_id = user_record[0]
+        data = request.get_json(silent=True) or {}
+        email = data.get("email")
         
-        success, msg_or_token = send_reset_email(email)
+        print(f"Email received: {email}")
+
+        if not email:
+            return jsonify({"message": "Email is required"}), 400
         
-        if not success:
-            return jsonify({"message": "Failed to send email.", "error": msg_or_token}), 500
+        db = get_db()
+        cursor = db.cursor()
 
-        reset_token = msg_or_token 
+        try:
+            cursor.execute("SELECT id FROM users WHERE email=%s", (email,))
+            user_record = cursor.fetchone()
+            
+            if not user_record:
+                print(f"User not found for email: {email}")
+                # Return success message even if user doesn't exist (security best practice)
+                return jsonify({"message": "If an account exists, a password reset link has been sent."}), 200
 
-        expires_at = datetime.datetime.now() + datetime.timedelta(hours=1)
-        
-        cursor.execute(
-            "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)",
-            (user_id, reset_token, expires_at)
-        )
-        db.commit()
+            user_id = user_record[0]
+            print(f"User found, ID: {user_id}")
+            
+            success, msg_or_token = send_reset_email(email)
+            
+            if not success:
+                print(f"Failed to send email: {msg_or_token}")
+                return jsonify({"message": "Failed to send email.", "error": msg_or_token}), 500
 
-        return jsonify({"message": "Password reset link sent. Check your inbox."}), 200
+            reset_token = msg_or_token 
+            expires_at = datetime.datetime.now() + datetime.timedelta(hours=1)
+            
+            cursor.execute(
+                "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)",
+                (user_id, reset_token, expires_at)
+            )
+            db.commit()
+            
+            print("Password reset token saved successfully")
+            return jsonify({"message": "Password reset link sent. Check your inbox."}), 200
 
-    except mysql.connector.Error as err:
-        db.rollback()
-        print(f"ERROR: Database error: {err.msg}")
-        return jsonify({"message": "Failed to generate reset link."}), 500
-    finally:
-        cursor.close()
-        db.close()
+        except mysql.connector.Error as err:
+            db.rollback()
+            print(f"ERROR: Database error: {err.msg}")
+            return jsonify({"message": "Failed to generate reset link."}), 500
+        finally:
+            cursor.close()
+            db.close()
+            
+    except Exception as e:
+        print(f"EXCEPTION in forgot_password: {e}")
+        return jsonify({"message": f"Server error: {str(e)}"}), 500
 
-
-@app.route("/api/auth/reset-password", methods=["POST"])
+@app.route("/api/auth/reset-password", methods=["POST", "OPTIONS"])
 def reset_password(): 
-    # ✅ FIXED: Removed manual OPTIONS check.
-    
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
+
     data = request.get_json(silent=True) or {}
     token = data.get("token")
     new_password = data.get("newPassword")
@@ -508,9 +519,10 @@ def reset_password():
         cursor.close()
         db.close()
 
-@app.route("/api/auth/delete", methods=["DELETE"])
+@app.route("/api/auth/delete", methods=["DELETE", "OPTIONS"])
 def delete_account():
-    # ✅ FIXED: Removed manual OPTIONS check.
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
 
     data = request.get_json()
     
@@ -554,15 +566,19 @@ def delete_account():
         return jsonify({"message": "Account deleted successfully."}), 200
 
     except mysql.connector.Error as err:
-        if db: db.rollback()
+        if db: 
+            db.rollback()
         return jsonify({"message": f"Database error: {err.msg}"}), 500
     except ValueError:
         return jsonify({"message": "Invalid user ID format."}), 400
     finally:
-        if cursor: cursor.close()
-        if db: db.close()
+        if cursor: 
+            cursor.close()
+        if db: 
+            db.close()
 
 if __name__ == "__main__":
-    # Gunicorn uses the PORT env var; locally we default to 5000
     port = int(os.environ.get("PORT", 5000))
+    print(f"Starting Flask app on port {port}...")
+    print(f"Frontend URL: {FRONTEND_URL}")
     app.run(debug=False, host='0.0.0.0', port=port)
